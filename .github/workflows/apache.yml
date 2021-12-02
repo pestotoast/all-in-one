@@ -5,9 +5,12 @@ on:
 
 jobs:
   docker_build_and_publish_github:
-    env:
-      CONTAINER_NAME: apache
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        container: ['apache', 'borgbackup', 'collabora', 'domaincheck', 'mastercontainer', 'nextcloud', 'postgresql', 'redis', 'talk', 'watchtower']
+
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
@@ -41,6 +44,8 @@ jobs:
       - name: Docker metadata
         id: metadata
         uses: docker/metadata-action@v3
+        env:
+          CONTAINER_NAME: ${{ matrix.container }}
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/aio-${{ env.CONTAINER_NAME }}
@@ -50,6 +55,8 @@ jobs:
 
       - name: Build docker image and push to github packages
         uses: docker/build-push-action@v2
+        env:
+          CONTAINER_NAME: ${{ matrix.container }}
         with:
           context: ./Containers/${{ env.CONTAINER_NAME }}
           platforms: linux/amd64,linux/arm64
