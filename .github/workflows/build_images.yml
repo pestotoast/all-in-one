@@ -1,13 +1,16 @@
-name: Build collabora
+name: Build apache
 
 on:
   push:
 
-jobs:    
+jobs:
   docker_build_and_publish_github:
-    env:
-      CONTAINER_NAME: collabora
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        container: ['apache', 'borgbackup', 'collabora', 'domaincheck', 'mastercontainer', 'nextcloud', 'postgresql', 'redis', 'talk', 'watchtower']
+
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
@@ -43,7 +46,7 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/aio-${{ env.CONTAINER_NAME }}
+            ghcr.io/${{ github.repository_owner }}/aio-${{ matrix.container }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.latest-tag.outputs.result }}
@@ -51,7 +54,7 @@ jobs:
       - name: Build docker image and push to github packages
         uses: docker/build-push-action@v2
         with:
-          context: ./Containers/${{ env.CONTAINER_NAME }}
+          context: ./Containers/${{ matrix.container }}
           platforms: linux/amd64,linux/arm64
           no-cache: true
           push: true
