@@ -56,8 +56,7 @@ RUN rm /etc/apache2/ports.conf; \
 
 RUN a2dissite 000-default && \
     a2dissite default-ssl && \
-    a2ensite mastercontainer.conf && \
-    service apache2 restart
+    a2ensite mastercontainer.conf
 
 RUN mkdir /var/log/supervisord; \
     mkdir /var/run/supervisord; \
