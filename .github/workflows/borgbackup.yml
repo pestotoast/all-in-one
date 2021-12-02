@@ -1,9 +1,12 @@
-name: Build apache
+name: Build borgbackup
 
 on:
   push:
 
 jobs:
+  env:
+    CONTAINER_NAME=borgbackup
+    
   docker_build_and_publish_github:
     runs-on: ubuntu-latest
     steps:
@@ -41,7 +44,7 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/aio-apache
+            ghcr.io/${{ github.repository_owner }}/aio-${{ env.CONTAINER_NAME }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.latest-tag.outputs.result }}
@@ -49,7 +52,7 @@ jobs:
       - name: Build docker image and push to github packages
         uses: docker/build-push-action@v2
         with:
-          context: ./Containers/apache
+          context: ./Containers/${{ env.CONTAINER_NAME }}
           platforms: linux/amd64,linux/arm64
           no-cache: true
           push: true
