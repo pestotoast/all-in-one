@@ -4,10 +4,9 @@ on:
   push:
 
 jobs:
-  env:
-    CONTAINER_NAME=borgbackup
-    
   docker_build_and_publish_github:
+    env:
+      CONTAINER_NAME: borgbackup
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo

@@ -3,11 +3,10 @@ name: Build redis
 on:
   push:
 
-jobs:
-  env:
-    CONTAINER_NAME=redis
-    
+jobs:    
   docker_build_and_publish_github:
+    env:
+      CONTAINER_NAME: redis
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo

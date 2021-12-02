@@ -3,11 +3,10 @@ name: Build mastercontainer
 on:
   push:
 
-jobs:
-  env:
-    CONTAINER_NAME=mastercontainer
-    
+jobs:    
   docker_build_and_publish_github:
+    env:
+      CONTAINER_NAME: mastercontainer
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo

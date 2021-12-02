@@ -3,11 +3,10 @@ name: Build collabora
 on:
   push:
 
-jobs:
-  env:
-    CONTAINER_NAME=collabora
-    
+jobs:    
   docker_build_and_publish_github:
+    env:
+      CONTAINER_NAME: collabora
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo

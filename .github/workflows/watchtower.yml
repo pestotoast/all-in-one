@@ -3,11 +3,10 @@ name: Build watchtower
 on:
   push:
 
-jobs:
-  env:
-    CONTAINER_NAME=watchtower
-    
+jobs:    
   docker_build_and_publish_github:
+    env:
+      CONTAINER_NAME: watchtower
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo

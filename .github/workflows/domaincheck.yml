@@ -4,10 +4,9 @@ on:
   push:
 
 jobs:
-  env:
-    CONTAINER_NAME=domaincheck
-
   docker_build_and_publish_github:
+    env:
+      CONTAINER_NAME: domaincheck
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
