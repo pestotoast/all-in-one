@@ -11,9 +11,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ 
-          {arch: 'linux/amd64',  tag: 'develop' },
-          {arch: 'linux/arm64', tag: 'develop-arm64' } ]
+        #platform: [ 
+        #  {arch: 'linux/amd64',  tag: 'develop' },
+        #  {arch: 'linux/arm64', tag: 'develop-arm64' } ]
         container: [
           {name: 'aio-apache', context: './Containers/apache'},
           {name: 'aio-borgbackup', context: './Containers/borgbackup'},
