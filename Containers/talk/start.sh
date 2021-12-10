@@ -57,6 +57,8 @@ connectionsperhost = 8
 url = nats://127.0.0.1:4222
 [mcu]
 type = janus
+maxstreambitrate=10485760
+maxscreenbitrate=10485760
 url = ws://127.0.0.1:8188
 [turn]
 apikey = ${JANUS_API_KEY}

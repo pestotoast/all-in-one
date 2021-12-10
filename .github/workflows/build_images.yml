@@ -9,7 +9,7 @@ jobs:
 
     strategy:
       matrix:
-        container: ['apache', 'borgbackup', 'collabora', 'domaincheck', 'mastercontainer', 'nextcloud', 'postgresql', 'redis', 'talk', 'watchtower']
+        container: [ 'talk' ]
 
     steps:
       - name: Check out the repo
@@ -28,28 +28,14 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Get the most recent release version from nextcloud-server and use it as tag for the image
-      - uses: actions/github-script@v4
-        id: 'latest-tag'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          result-encoding: string
-          script: |
-            const releases = await github.repos.listReleases({
-              owner: 'nextcloud',
-              repo: 'server',
-            });
-            return releases.data[0].tag_name;
-
       - name: Docker metadata
         id: metadata
         uses: docker/metadata-action@v3
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/aio-${{ matrix.container }}
+            ghcr.io/${{ github.repository_owner }}/custom-aio-${{ matrix.container }}
           tags: |
             type=raw,value=latest
-            type=raw,value=${{ steps.latest-tag.outputs.result }}
 
       - name: Build docker image and push to github packages
         uses: docker/build-push-action@v2
@@ -58,6 +44,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           no-cache: true
           push: true
-          build-args: |
-            "BRANCH=${{ steps.latest-tag.outputs.result }}"
           tags: ${{ steps.metadata.outputs.tags }}
