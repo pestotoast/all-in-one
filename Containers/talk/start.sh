@@ -82,7 +82,7 @@ blockkey = $(openssl rand -hex 16)
 internalsecret = ${INTERNAL_SECRET}
 
 [backend]
-backends = backend-1 backend-2
+backends = backend-1,backend-2
 allowall = false
 timeout = 10
 connectionsperhost = 8
