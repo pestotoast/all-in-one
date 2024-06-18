@@ -23,6 +23,8 @@ class DockerHubManager
             return $cachedVersion;
         }
 
+        // If one of the links below should ever become outdated, we can still upgrade the mastercontainer via the webinterface manually by opening '/api/docker/getwatchtower'
+
         try {
             $authTokenRequest = $this->guzzleClient->request(
                 'GET',
@@ -33,11 +35,11 @@ class DockerHubManager
             if(isset($decodedBody['token'])) {
                 $authToken = $decodedBody['token'];
                 $manifestRequest = $this->guzzleClient->request(
-                    'GET',
+                    'HEAD',
                     'https://registry-1.docker.io/v2/'.$name.'/manifests/' . $tag,
                     [
                         'headers' => [
-                            'Accept' => 'application/vnd.docker.distribution.manifest.v2+json',
+                            'Accept' => 'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json',
                             'Authorization' => 'Bearer ' . $authToken,
                         ],
                     ]
@@ -50,8 +52,10 @@ class DockerHubManager
                 }
             }
 
+            error_log('Could not get digest of container ' . $name . ':' . $tag);
             return null;
         } catch (\Exception $e) {
+            error_log('Could not get digest of container ' . $name . ':' . $tag . ' ' . $e->getMessage());
             return null;
         }
     }

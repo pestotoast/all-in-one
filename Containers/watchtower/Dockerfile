@@ -1,28 +1,18 @@
+# syntax=docker/dockerfile:latest
 # From https://github.com/containrrr/watchtower/blob/main/dockerfiles/Dockerfile.self-contained
-FROM containrrr/watchtower:latest as watchtower
+FROM containrrr/watchtower:1.7.1 as watchtower
 
-FROM debian:bullseye
+FROM alpine:3.19.1
 
-RUN set -ex; \
-    \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        ca-certificates \
-        openssl \
-    ; \
-    rm -rf /var/lib/apt/lists/*
+RUN apk upgrade --no-cache -a; \
+    apk add --no-cache bash
 
-COPY --from=watchtower /watchtower /
+COPY --from=watchtower /watchtower /watchtower
 
-COPY start.sh /
-RUN chmod +x /start.sh
+COPY --chmod=775 start.sh /start.sh
 
-# Give root a random password
-RUN echo "root:$(openssl rand -base64 12)" | chpasswd
+# hadolint ignore=DL3002
+USER root
 
-# add docker group
-RUN groupadd -g 998 docker && \
-    usermod -aG docker nobody
-
-USER nobody
 ENTRYPOINT ["/start.sh"]
+LABEL com.centurylinklabs.watchtower.enable="false"

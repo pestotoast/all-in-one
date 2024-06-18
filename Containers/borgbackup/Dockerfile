@@ -1,22 +1,25 @@
-FROM debian:bullseye
+# syntax=docker/dockerfile:latest
+FROM alpine:3.19.1
 
 RUN set -ex; \
     \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
+    apk upgrade --no-cache -a; \
+    apk add --no-cache \
+        util-linux-misc \
+        bash \
         borgbackup \
         rsync \
         fuse \
-        python3-llfuse \
-    ; \
-    rm -rf /var/lib/apt/lists/*
+        py3-llfuse \
+        jq
 
 VOLUME /root
 
-COPY start.sh /usr/bin/
-COPY backupscript.sh /
-RUN chmod +x /usr/bin/start.sh; \
-    chmod +x /backupscript.sh
+COPY --chmod=770 *.sh /
 
+ENTRYPOINT ["/start.sh"]
+# hadolint ignore=DL3002
 USER root
-ENTRYPOINT ["start.sh"]
+
+LABEL com.centurylinklabs.watchtower.enable="false"
+ENV BORG_RETENTION_POLICY="--keep-within=7d --keep-weekly=4 --keep-monthly=6"

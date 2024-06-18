@@ -1,68 +1,91 @@
-FROM debian:bullseye
+# syntax=docker/dockerfile:latest
+FROM caddy:2.8.4-alpine as caddy
 
-EXPOSE 80
+FROM httpd:2.4.59-alpine3.19
 
-RUN mkdir -p /mnt/data; \
-    chown www-data:www-data /mnt/data;
+COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
+
+COPY --chown=33:33 Caddyfile /Caddyfile
+COPY --chmod=664 nextcloud.conf /usr/local/apache2/conf/nextcloud.conf
+COPY --chmod=664 supervisord.conf /supervisord.conf
+COPY --chmod=775 start.sh /start.sh
+COPY --chmod=775 healthcheck.sh /healthcheck.sh
 
 VOLUME /mnt/data
 
 RUN set -ex; \
+    apk upgrade --no-cache -a; \
+    apk add --no-cache shadow; \
+    groupmod -g 333 xfs; \
+    usermod -u 333 -g 333 xfs; \
+    groupmod -g 33 www-data; \
+    usermod -u 33 -g 33 www-data; \
+    apk del --no-cache shadow; \
     \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        apache2 \
+    mkdir -p /mnt/data; \
+    chown -R www-data:www-data /mnt/data; \
+    chown -R 777 /tmp; \
+    \
+    apk add --no-cache \
+        bash \
         supervisor \
-        wget \
+        tzdata \
         ca-certificates \
         openssl \
-        netcat \
-    ; \
-    rm -rf /var/lib/apt/lists/*
-
-RUN wget "https://caddyserver.com/api/download?os=linux&arch=amd64" -O "/usr/bin/caddy" \
-    && chmod +x /usr/bin/caddy \
-    && /usr/bin/caddy version
-
-RUN a2enmod rewrite \
-    headers \
-    proxy \
-    proxy_fcgi \
-    setenvif \
-    env \
-    mime \
-    dir \
-    authz_core \
-    alias
-
-COPY nextcloud.conf /etc/apache2/sites-available/
-
-RUN a2dissite 000-default && \
-    a2dissite default-ssl && \
-    a2ensite nextcloud.conf && \
-    rm -rf /var/www/html/* && \
-    service apache2 restart; \
-    chown www-data:www-data -R /var/log/apache2; \
-    chown -R www-data:www-data /var/run/apache2; \
-    chown -R www-data:www-data /var/www;
-
-RUN mkdir /var/log/supervisord; \
+        bind-tools \
+        netcat-openbsd; \
+    \
+    sed -i \
+            -e '/^Listen /d' \
+            -e 's/^#\(LoadModule .*mod_rewrite.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_headers.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_proxy.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_proxy_fcgi.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_setenvif.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_env.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_mime.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_dir.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_authz_core.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_alias.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_mpm_event.so\)/\1/' \
+            -e 's/^#\(LoadModule .*mod_brotli.so\)/\1/' \
+            -e 's/\(LoadModule .*mod_mpm_worker.so\)/#\1/' \
+            -e 's/\(LoadModule .*mod_mpm_prefork.so\)/#\1/' \
+            -e 's/\(ScriptAlias \)/#\1/' \
+        /usr/local/apache2/conf/httpd.conf; \
+    echo "Include conf/nextcloud.conf" | tee -a /usr/local/apache2/conf/httpd.conf; \
+    echo "ServerName localhost" | tee -a /usr/local/apache2/conf/httpd.conf; \
+# Sync this with max db connections and pm.max_children
+# We don't actually expect so many workers but don't want to limit it artificially because people will report issues otherwise.
+    sed -i 's|MaxRequestWorkers.*|MaxRequestWorkers 5000|' /usr/local/apache2/conf/extra/httpd-mpm.conf; \
+    grep -q '<IfModule mpm_event_module>' /usr/local/apache2/conf/extra/httpd-mpm.conf; \
+# ServerLimit needs to be set to MaxRequestWorkers divided by ThreadsPerChild which is set to 25 by default
+    sed -i '/<IfModule mpm_event_module>/a\ \ \ \ ServerLimit 200' /usr/local/apache2/conf/extra/httpd-mpm.conf; \
+    \
+    rm -rf /usr/local/apache2/conf/original /var/www; \
+    mkdir -p /var/www; \
+    chown -R www-data:www-data /var/www; \
+    \
+    mkdir /var/log/supervisord; \
     mkdir /var/run/supervisord; \
     chown www-data:www-data /var/run/supervisord; \
-    chown www-data:www-data /var/log/supervisord;
-
-COPY Caddyfile /
-
-COPY start.sh /usr/bin/
-COPY supervisord.conf /
-RUN chmod +x /usr/bin/start.sh; \
-    chmod +r /supervisord.conf; \
-    chmod +r /Caddyfile;
-
-# Give root a random password
-RUN echo "root:$(openssl rand -base64 12)" | chpasswd
+    chown www-data:www-data /var/log/supervisord; \
+    chmod 777 /var/run/supervisord; \
+    chmod 777 /var/log/supervisord; \
+    \
+    chown -R www-data:www-data /usr/local/apache2; \
+    chmod +r -R /usr/local/apache2; \
+    mkdir -p /usr/local/apache2/logs; \
+    chmod 777 -R /home/www-data; \
+    chmod 777 -R /usr/local/apache2/logs; \
+    rm -rf /usr/local/apache2/cgi-bin/; \
+    \
+    echo "root:$(openssl rand -base64 12)" | chpasswd
 
 USER www-data
 
-ENTRYPOINT ["start.sh"]
+ENTRYPOINT ["/start.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/supervisord.conf"]
+
+HEALTHCHECK CMD /healthcheck.sh
+LABEL com.centurylinklabs.watchtower.enable="false"

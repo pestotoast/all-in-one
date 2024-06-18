@@ -1,12 +1,14 @@
 ## Developer channel
 If you want to switch to the develop channel, you simply stop and delete the mastercontainer and create a new one with a changed tag to develop:
 ```shell
-sudo docker run -it \
+sudo docker run \
+--init \
+--sig-proxy=false \
 --name nextcloud-aio-mastercontainer \
 --restart always \
--p 80:80 \
--p 8080:8080 \
--p 8443:8443 \
+--publish 80:80 \
+--publish 8080:8080 \
+--publish 8443:8443 \
 --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
 --volume /var/run/docker.sock:/var/run/docker.sock:ro \
 nextcloud/all-in-one:develop
@@ -14,27 +16,28 @@ nextcloud/all-in-one:develop
 And you are done :)
 It will now also select the developer channel for all other containers automatically.
 
-## How to promote builds from develop to latest
+## How to publish new releases?
+Simply use https://github.com/nextcloud/all-in-one/issues/180 as template.
 
-You can use the Docker CLI to promote builds from develop to latest. Make sure to adjust:
+## How to build new containers
+Go to https://github.com/nextcloud-releases/all-in-one/actions/workflows/repo-sync.yml and run the workflow that will first sync the repo and then build new container that automatically get published to `develop` and `develop-arm64`.
 
-- $name
-- $digest
+## How to test things correctly?
+Before testing, make sure that at least the amd64 containers are built successfully by checking the last workflow here: https://github.com/nextcloud-releases/all-in-one/actions/workflows/build_images.yml. 
 
-```shell
-export AIO_NAME=$name
-export AIO_DIGEST=$digest
-docker pull nextcloud/$AIO_NAME@sha256:$AIO_DIGEST
-docker tag nextcloud/$AIO_NAME@sha256:$AIO_DIGEST nextcloud/$AIO_NAME\:latest
-docker push nextcloud/$AIO_NAME\:latest
-```
+There is a testing-VM available for the maintainer of AIO that allows for some final testing before releasing new version. See [this](https://cloud.nextcloud.com/apps/collectives/Nextcloud%20Handbook/Technical/AIO%20testing%20VM?fileId=6350152) for details.
 
-To automatically promoted the latest develop version you can use the following script:
+## How to promote builds from develop to beta
+1. Verify that no job is running here: https://github.com/nextcloud-releases/all-in-one/actions/workflows/build_images.yml
+2. Go to https://github.com/nextcloud-releases/all-in-one/actions/workflows/promote-to-beta.yml, click on `Run workflow`.
 
-**WARNING:** Make sure to verify that the latest develop tag is what you really want to deploy since someone could have pushed to main and created a new container in between.
-```shell
-export AIO_NAME=$name
-docker pull nextcloud/$AIO_NAME\:develop
-docker tag nextcloud/$AIO_NAME\:develop nextcloud/$AIO_NAME\:latest
-docker push nextcloud/$AIO_NAME\:latest
-```
+## Where to find the VPS and other builds?
+This is documented here: https://github.com/nextcloud-releases/all-in-one/tree/main/.build
+
+## How to promote builds from beta to latest
+
+1. Verify that no job is running here: https://github.com/nextcloud-releases/all-in-one/actions/workflows/promote-to-beta.yml
+2. Go to https://github.com/nextcloud-releases/all-in-one/actions/workflows/promote-to-latest.yml, click on `Run workflow`.
+
+## How to connect to the database?
+Simply run `sudo docker exec -it nextcloud-aio-database psql -U oc_nextcloud nextcloud_database` and you should be in.

@@ -27,11 +27,31 @@ class DataConst {
         return self::GetDataDirectory() . '/backupsecret';
     }
 
+    public static function GetDailyBackupTimeFile() : string {
+        return self::GetDataDirectory() . '/daily_backup_time';
+    }
+
+    public static function GetAdditionalBackupDirectoriesFile() : string {
+        return self::GetDataDirectory() . '/additional_backup_directories';
+    }
+
+    public static function GetDailyBackupBlockFile() : string {
+        return self::GetDataDirectory() . '/daily_backup_running';
+    }
+
     public static function GetBackupKeyFile() : string {
         return self::GetDataDirectory() . '/borg.config';
     }
 
     public static function GetBackupArchivesList() : string {
         return self::GetDataDirectory() . '/backup_archives.list';
+    }
+
+    public static function GetSessionDateFile() : string {
+        return self::GetDataDirectory() . '/session_date_file';
+    }
+
+    public static function GetCommunityContainersDirectory() : string {
+        return realpath(__DIR__ . '/../../../community-containers/');
     }
 }

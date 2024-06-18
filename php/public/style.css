@@ -6,6 +6,7 @@ html, body {
 
 a {
     text-decoration: none;
+    color: #0082c9;
 }
 
 .button {
@@ -21,6 +22,19 @@ a {
     color: white;
     border: 1px solid black;
     outline: none;
+}
+
+.button:focus {
+    color:black;
+    border: 2px solid black;
+}
+
+#logout {
+    margin-top: 7px;
+}
+
+summary {
+    cursor: pointer;
 }
 
 ul {
@@ -72,7 +86,7 @@ div.toast {
     padding: 12px;
     margin-top: 45px;
     position: fixed;
-    z-index: 1;
+    z-index: 1000;
     border-radius: 3px;
     background: none;
     background-color: white;
@@ -136,7 +150,7 @@ input {
     padding: 20px;
     max-width: 100%;
     word-break: break-word;
-    max-width: 450px;
+    max-width: 500px;
     margin: 0 auto;
 }
 
@@ -184,7 +198,7 @@ header {
 .loader {
     border: 16px solid #f3f3f3;
     border-radius: 50%;
-    border-top: 16px solid #3498db;
+    border-top: 16px solid #0082c9;
     width: 120px;
     height: 120px;
     -webkit-animation: spin 2s linear infinite; /* Safari */

@@ -1,6 +1,16 @@
 "use strict";
+
+function showPassword(id) {
+  let passwordField = document.getElementById(id);
+  if (passwordField.type === "password" && passwordField.value !== "") {
+    passwordField.type = "text";
+  } else if (passwordField.type === "text" && passwordField.value === "") {
+    passwordField.type = "password";
+  }
+}
+
 (function (){
-  var lastError;
+  let lastError;
 
   function showError(message) {
     const body = document.getElementsByTagName('body')[0]
@@ -12,32 +22,34 @@
     }
     lastError = toast
     body.prepend(toast)
-    setTimeout(toast.remove.bind(toast), 3000)
+    setTimeout(toast.remove.bind(toast), 10000)
   }
 
   function handleEvent(e) {
     const xhr = e.target;
     if (xhr.status === 201) {
       window.location.replace(xhr.getResponseHeader('Location'));
-    }
-    if (xhr.status === 422) {
+    } else if (xhr.status === 422) {
+      disableSpinner()
       showError(xhr.response);
-    }
-    if (xhr.status === 500) {
-      showError("Server error. Please see the logs for details.");
+    } else if (xhr.status === 500) {
+      showError("Server error. Please check the mastercontainer logs for details. This page will reload after 10s automatically. Then you can check the mastercontainer logs.");
+      // Reload after 10s since it is expected that the updated view is shown (e.g. after starting containers)
+      setTimeout(function(){
+        window.location.reload(1);
+      }, 10000);
+    } else {
+      // If the responose is not one of the above, we should reload to show the latest content
+      window.location.reload(1);
     }
   }
 
-  function disable(element) {
+  function enableSpinner() {
     document.getElementById('overlay').classList.add('loading');
-    element.classList.add('loading');
-    element.disabled = true;
   }
 
-  function enable(element) {
+  function disableSpinner() {
     document.getElementById('overlay').classList.remove('loading');
-    element.classList.remove('loading');
-    element.disabled = false;
   }
 
   function initForm(form) {
@@ -46,14 +58,13 @@
       if (lastError) {
         lastError.remove()
       }
-      var xhr = new XMLHttpRequest();
+      let xhr = new XMLHttpRequest();
       xhr.addEventListener('load', handleEvent);
       xhr.addEventListener('error', () => showError("Failed to talk to server."));
-      xhr.addEventListener('load', () => enable(event.submitter));
-      xhr.addEventListener('error', () => enable(event.submitter));
+      xhr.addEventListener('error', () => disableSpinner());
       xhr.open(form.method, form.getAttribute("action"));
       xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-      disable(event.submitter);
+      enableSpinner();
       xhr.send(new URLSearchParams(new FormData(form)));
       event.preventDefault();
     }

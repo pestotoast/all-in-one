@@ -1,15 +1,20 @@
-FROM alpine
-RUN apk add --update --no-cache lighttpd bash
+# syntax=docker/dockerfile:latest
+FROM alpine:3.19.1
+RUN set -ex; \
+    apk upgrade --no-cache -a; \
+    apk add --no-cache bash lighttpd netcat-openbsd; \
+    adduser -S www-data -G www-data; \
+    rm -rf /etc/lighttpd/lighttpd.conf; \
+    chmod 777 -R /etc/lighttpd; \
+    mkdir -p /var/www/domaincheck; \
+    chown www-data:www-data -R /var/www; \
+    chmod 777 -R /var/www/domaincheck
+COPY --chown=www-data:www-data lighttpd.conf /lighttpd.conf
 
-RUN adduser -S www-data -G www-data
-RUN rm -rf /etc/lighttpd/lighttpd.conf
-COPY lighttpd.conf /etc/lighttpd/lighttpd.conf
-RUN chmod +r -R /etc/lighttpd && \
-    chown www-data:www-data -R /var/www
-
-COPY start.sh /
-RUN chmod +x /start.sh
+COPY --chmod=775 start.sh /start.sh
 
 USER www-data
-RUN mkdir -p /var/www/domaincheck/
 ENTRYPOINT ["/start.sh"]
+
+HEALTHCHECK CMD nc -z 127.0.0.1 $APACHE_PORT || exit 1
+LABEL com.centurylinklabs.watchtower.enable="false"
