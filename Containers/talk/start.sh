@@ -82,13 +82,19 @@ blockkey = $(openssl rand -hex 16)
 internalsecret = ${INTERNAL_SECRET}
 
 [backend]
-backends = backend-1
+backends = backend-1 backend-2
 allowall = false
 timeout = 10
 connectionsperhost = 8
 
 [backend-1]
 url = https://${NC_DOMAIN}
+secret = ${SIGNALING_SECRET}
+maxstreambitrate = ${TALK_MAX_STREAM_BITRATE}
+maxscreenbitrate = ${TALK_MAX_SCREEN_BITRATE}
+
+[backend-2]
+url = https://${NC_DOMAIN_2}
 secret = ${SIGNALING_SECRET}
 maxstreambitrate = ${TALK_MAX_STREAM_BITRATE}
 maxscreenbitrate = ${TALK_MAX_SCREEN_BITRATE}
