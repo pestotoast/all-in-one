@@ -82,7 +82,7 @@ blockkey = $(openssl rand -hex 16)
 internalsecret = ${INTERNAL_SECRET}
 
 [backend]
-backends = backend-1
+backends = backend-1,backend-2
 allowall = false
 timeout = 10
 connectionsperhost = 8
@@ -93,11 +93,19 @@ secret = ${SIGNALING_SECRET}
 maxstreambitrate = ${TALK_MAX_STREAM_BITRATE}
 maxscreenbitrate = ${TALK_MAX_SCREEN_BITRATE}
 
+[backend-2]
+url = https://${NC_DOMAIN_2}
+secret = ${SIGNALING_SECRET}
+maxstreambitrate = ${TALK_MAX_STREAM_BITRATE}
+maxscreenbitrate = ${TALK_MAX_SCREEN_BITRATE}
+
 [nats]
 url = nats://127.0.0.1:4222
 
 [mcu]
 type = janus
+maxstreambitrate=10485760
+maxscreenbitrate=10485760
 url = ws://127.0.0.1:8188
 maxstreambitrate = ${TALK_MAX_STREAM_BITRATE}
 maxscreenbitrate = ${TALK_MAX_SCREEN_BITRATE}
