@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:latest
-FROM python:3.12.4-alpine3.19
+FROM python:3.13.0-alpine3.20
 
 COPY --chmod=775 start.sh /start.sh
 
-ENV RECORDING_VERSION v0.1
-ENV ALLOW_ALL false
-ENV HPB_PROTOCOL https
-ENV SKIP_VERIFY false
-ENV HPB_PATH /standalone-signaling/
+ENV RECORDING_VERSION=v0.1
+ENV ALLOW_ALL=false
+ENV HPB_PROTOCOL=https
+ENV SKIP_VERIFY=false
+ENV HPB_PATH=/standalone-signaling/
 
 RUN set -ex; \
     apk upgrade --no-cache -a; \
@@ -26,10 +26,9 @@ RUN set -ex; \
         pulseaudio \
         openssl \
         build-base \
-        linux-headers; \
-    # chromium chromium-chromedriver?
-    apk add --no-cache geckodriver --repository http://dl-cdn.alpinelinux.org/alpine/edge/community; \
-    useradd -d /tmp --system recording; \
+        linux-headers \
+        geckodriver; \
+    useradd -d /tmp --system recording -u 122; \
 # Give root a random password
     echo "root:$(openssl rand -base64 12)" | chpasswd; \
     git clone --recursive https://github.com/nextcloud/nextcloud-talk-recording --depth=1 --single-branch --branch "$RECORDING_VERSION" /src; \
@@ -49,8 +48,9 @@ RUN set -ex; \
         build-base \
         linux-headers;
 
+VOLUME /tmp
 WORKDIR /tmp
-USER recording
+USER 122
 ENTRYPOINT ["/start.sh"]
 CMD ["python", "-m", "nextcloud.talk.recording", "--config", "/conf/recording.conf"]
 

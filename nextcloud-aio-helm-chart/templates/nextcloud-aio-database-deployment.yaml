@@ -25,11 +25,7 @@ spec:
     spec:
       initContainers:
         - name: init-subpath
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - mkdir
             - "-p"
@@ -42,11 +38,7 @@ spec:
             - name: nextcloud-aio-database
               mountPath: /nextcloud-aio-database
         - name: init-volumes
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - chown
             - 999:999
@@ -70,15 +62,18 @@ spec:
               value: nextcloud
             - name: TZ
               value: "{{ .Values.TIMEZONE }}"
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.NEXTCLOUD_IMAGE_ORG }}/aio-postgresql:20240617_084300-latest"
+          image: "nextcloud/aio-postgresql:20241106_101604"
           name: nextcloud-aio-database
           ports:
             - containerPort: 5432
               protocol: TCP
           securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
             capabilities:
               drop:
                 - NET_RAW
+            runAsUser: 999
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
               subPath: data

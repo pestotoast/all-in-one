@@ -25,11 +25,7 @@ spec:
     spec:
       initContainers:
         - name: init-volumes
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - chmod
             - "777"
@@ -43,15 +39,18 @@ spec:
               value: "{{ .Values.REDIS_PASSWORD }}"
             - name: TZ
               value: "{{ .Values.TIMEZONE }}"
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.NEXTCLOUD_IMAGE_ORG }}/aio-redis:20240617_084300-latest"
+          image: "nextcloud/aio-redis:20241106_101604"
           name: nextcloud-aio-redis
           ports:
             - containerPort: 6379
               protocol: TCP
           securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
             capabilities:
               drop:
                 - NET_RAW
+            runAsUser: 999
           volumeMounts:
             - mountPath: /data
               name: nextcloud-aio-redis

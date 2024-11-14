@@ -1,21 +1,26 @@
 # syntax=docker/dockerfile:latest
-FROM php:8.2.20-fpm-alpine3.19
+FROM php:8.3.13-fpm-alpine3.20
 
-ENV PHP_MEMORY_LIMIT 512M
-ENV PHP_UPLOAD_LIMIT 10G
-ENV PHP_MAX_TIME 3600
-ENV SOURCE_LOCATION /usr/src/nextcloud
+ENV PHP_MEMORY_LIMIT=512M
+ENV PHP_UPLOAD_LIMIT=10G
+ENV PHP_MAX_TIME=3600
+ENV SOURCE_LOCATION=/usr/src/nextcloud
+ENV REDIS_DB_INDEX=0
 
 # AIO settings start # Do not remove or change this line!
-ENV NEXTCLOUD_VERSION 29.0.2
-ENV AIO_TOKEN 123456
-ENV AIO_URL localhost
+ENV NEXTCLOUD_VERSION=30.0.2
+ENV AIO_TOKEN=123456
+ENV AIO_URL=localhost
 # AIO settings end # Do not remove or change this line!
+
+# Define the commit hash for imagick as a variable
+ARG IMAGICK_COMMIT_HASH=28f27044e435a2b203e32675e942eb8de620ee58
 
 COPY --chmod=775 *.sh /
 COPY --chmod=774 upgrade.exclude /upgrade.exclude
 COPY config/*.php /
 COPY supervisord.conf /supervisord.conf
+COPY root.motd /root.motd
 
 VOLUME /mnt/ncdata
 VOLUME /var/www/html
@@ -26,8 +31,6 @@ RUN set -ex; \
     apk upgrade --no-cache -a; \
     apk add --no-cache shadow; \
     deluser www-data; \
-    groupmod -g 333 xfs; \
-    usermod -u 333 -g 333 xfs; \
     addgroup -g 33 -S www-data; \
     adduser -u 33 -D -S -G www-data www-data; \
     \
@@ -78,13 +81,24 @@ RUN set -ex; \
     ; \
     \
 # pecl will claim success even if one install fails, so we need to perform each install separately
-    pecl install igbinary-3.2.15; \ 
-    pecl install APCu-5.1.23; \
-    pecl install memcached-3.2.0 \
-        --configureoptions 'enable-memcached-igbinary="yes"'; \
-    pecl install redis-6.0.2 \
-        --configureoptions 'enable-redis-igbinary="yes" enable-redis-zstd="yes" enable-redis-lz4="yes"'; \
-    pecl install imagick-3.7.0; \
+    pecl install -o igbinary-3.2.16; \
+    pecl install APCu-5.1.24; \
+    pecl install -D 'enable-memcached-igbinary="yes"' memcached-3.3.0; \
+    pecl install -oD 'enable-redis-igbinary="yes" enable-redis-zstd="yes" enable-redis-lz4="yes"' redis-6.1.0; \
+#    pecl install -o imagick-3.7.0; \
+# Begin workaround ->
+# The master version on the imagick repository is compatible with PHP 8.3. However, the PECL version is not updated yet.
+# As soon as it will get updated, we can switch back to the PECL version, instead of having this workaround.
+    apk add --no-cache --virtual .git-build-deps git \
+    && git clone https://github.com/imagick/imagick.git --depth 1 /tmp/imagick \
+    && cd /tmp/imagick \
+    && git fetch --depth 1 origin ${IMAGICK_COMMIT_HASH} \
+    && git checkout ${IMAGICK_COMMIT_HASH} \
+    && sed -i "s/@PACKAGE_VERSION@/git-${IMAGICK_COMMIT_HASH:0:7}/" php_imagick.h \
+    && phpize && ./configure && make && make install; \
+    apk del .git-build-deps; \
+    cd && rm -r /tmp/imagick; \
+# <- End workaround
     \
     docker-php-ext-enable \
         igbinary \
@@ -132,10 +146,11 @@ RUN set -ex; \
     \
     { \
         echo 'session.save_handler = redis'; \
-        echo 'session.save_path = "tcp://${REDIS_HOST}:6379?auth=${REDIS_HOST_PASSWORD}"'; \
+        echo 'session.save_path = "tcp://${REDIS_HOST}:6379/${REDIS_DB_INDEX}?auth=${REDIS_HOST_PASSWORD}"'; \
         echo 'redis.session.locking_enabled = 1'; \
         echo 'redis.session.lock_retries = -1'; \
         echo 'redis.session.lock_wait_time = 10000'; \
+        echo 'session.gc_maxlifetime = 86400'; \
     } > /usr/local/etc/php/conf.d/redis-session.ini; \
     \
     mkdir -p /var/www/data; \
@@ -223,6 +238,7 @@ RUN set -ex; \
         sudo \
         grep \
         nodejs \
+        libreoffice \
         bind-tools \
         imagemagick \
         imagemagick-svg \
@@ -245,6 +261,7 @@ RUN set -ex; \
     git clone https://github.com/nextcloud-releases/all-in-one.git --depth 1 .; \
     mkdir -p /usr/src/nextcloud/apps/nextcloud-aio; \
     cp -r ./app/* /usr/src/nextcloud/apps/nextcloud-aio/; \
+    echo "[ -n \"\$TERM\" ] && cat /root.motd" >> /root/.bashrc; \
 # AIO cloning end # Do not remove or change this line!
     \
     chown www-data:root -R /usr/src && \
@@ -255,10 +272,7 @@ RUN set -ex; \
     \
     mkdir -p /nc-updater; \
     chown -R www-data:www-data /nc-updater; \
-    chmod -R 770 /nc-updater; \
-    \
-# Give root a random password
-    echo "root:$(openssl rand -base64 12)" | chpasswd
+    chmod -R 770 /nc-updater
 
 # hadolint ignore=DL3002
 USER root

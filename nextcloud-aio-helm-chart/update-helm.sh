@@ -1,9 +1,11 @@
 #!/bin/bash
 
+[ -z "$1" ] && { echo "Error: Docker tag is not specified. Usage: ./nextcloud-aio-helm-chart/update-helm.sh <Docker tag>"; exit 2; }
+
 DOCKER_TAG="$1"
 
 # The logic needs the files in ./helm-chart
-mv ./nextcloud-aio-helm-chart ./helm-chart
+cp -r ./nextcloud-aio-helm-chart ./helm-chart
 
 # Clean
 rm -f ./helm-chart/values.yaml
@@ -15,20 +17,22 @@ chmod +x kompose
 sudo mv ./kompose /usr/local/bin/kompose
 
 # Install yq
-snap install yq
+sudo snap install yq
 
 set -ex
 
 # Conversion of docker-compose
 cd manual-install
 cp latest.yml latest.yml.backup
+
+sed -i -E '/^( *- )(NET_RAW|SYS_NICE|MKNOD|SYS_ADMIN)$/!s/( *- )([A-Z_]+)$/\1\2=${\2}/' latest.yml
 cp sample.conf /tmp/
 sed -i 's|^|export |' /tmp/sample.conf
 # shellcheck disable=SC1091
 source /tmp/sample.conf
 rm /tmp/sample.conf
 sed -i '/OVERWRITEHOST/d' latest.yml
-sed -i "s|:latest$|:$DOCKER_TAG-latest|" latest.yml
+sed -i "s|:latest$|:$DOCKER_TAG|" latest.yml
 sed -i "s|\${APACHE_IP_BINDING}:||" latest.yml
 sed -i '/APACHE_IP_BINDING/d' latest.yml
 sed -i "s|\${APACHE_PORT}:\${APACHE_PORT}/|$APACHE_PORT:$APACHE_PORT/|" latest.yml
@@ -41,8 +45,7 @@ sed -i "/NEXTCLOUD_DATADIR/d" latest.yml
 sed -i "/\${NEXTCLOUD_MOUNT}/d" latest.yml
 sed -i "/^volumes:/a\ \ nextcloud_aio_nextcloud_trusted_cacerts:\n \ \ \ \ name: nextcloud_aio_nextcloud_trusted_cacerts" latest.yml
 sed -i "s|\${NEXTCLOUD_TRUSTED_CACERTS_DIR}:|nextcloud_aio_nextcloud_trusted_cacerts:|g#" latest.yml
-sed -i 's|\${|{{ .Values.|g' latest.yml
-sed -i 's|}| }}|g' latest.yml
+sed -i 's/\${/{{ .Values./g; s/}/ }}/g' latest.yml
 yq -i 'del(.services.[].profiles)' latest.yml
 # Delete read_only and tmpfs setting while https://github.com/kubernetes/kubernetes/issues/48912 is not fixed
 yq -i 'del(.services.[].read_only)' latest.yml
@@ -59,11 +62,7 @@ find ./ -name '*networkpolicy.yaml' -exec sed -i "s|manual-install-nextcloud-aio
 cat << EOL > /tmp/initcontainers
       initContainers:
         - name: init-volumes
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - chmod
             - "777"
@@ -72,22 +71,14 @@ EOL
 cat << EOL > /tmp/initcontainers.database
       initContainers:
         - name: init-subpath
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - mkdir
             - "-p"
             - /nextcloud-aio-database/data
           volumeMountsInitContainer:
         - name: init-volumes
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - chown
             - 999:999
@@ -97,22 +88,14 @@ EOL
 cat << EOL > /tmp/initcontainers.clamav
       initContainers:
         - name: init-subpath
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - mkdir
             - "-p"
             - /nextcloud-aio-clamav/data
           volumeMountsInitContainer:
         - name: init-volumes
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - chown
             - 100:100
@@ -122,22 +105,14 @@ EOL
 cat << EOL > /tmp/initcontainers.nextcloud
       initContainers:
         - name: "delete-lost-found"
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - rm
             - "-rf"
             - "/nextcloud-aio-nextcloud/lost+found"
           volumeMountsInitRmLostFound:
         - name: init-volumes
-          {{- if or .Values.IMAGE_MIRROR_PREFIX .Values.ALPINE_IMAGE_ORG }}
-          image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.ALPINE_IMAGE_ORG}}/alpine"
-          {{- else }}
-          image: alpine
-          {{- end }}
+          image: "alpine:3.20"
           command:
             - chmod
             - "777"
@@ -246,7 +221,7 @@ find ./ \( -not -name '*service.yaml' -name '*.yaml' \) -exec sed -i "/^status:/
 # shellcheck disable=SC1083
 find ./ \( -not -name '*persistentvolumeclaim.yaml' -name '*.yaml' \) -exec sed -i "/resources:/d" \{} \; 
 # shellcheck disable=SC1083
-find ./ -name "*namespace.yaml" -exec sed -i "1i\\{{- if ne .Values.NAMESPACE \"default\" }}" \{} \; 
+find ./ -name "*namespace.yaml" -exec sed -i "1i\\{{- if and \(ne .Values.NAMESPACE \"default\"\) \(ne .Values.NAMESPACE_DISABLED \"yes\"\) }}" \{} \; 
 # shellcheck disable=SC1083
 find ./ -name "*namespace.yaml" -exec sed -i "$ a {{- end }}" \{} \; 
 # shellcheck disable=SC1083
@@ -290,6 +265,8 @@ cat << EOL > /tmp/additional.config
               value: "{{ .Values.SERVERINFO_TOKEN }}"
             - name: NEXTCLOUD_DEFAULT_QUOTA
               value: "{{ .Values.NEXTCLOUD_DEFAULT_QUOTA }}"
+            - name: NEXTCLOUD_MAINTENANCE_WINDOW
+              value: "{{ .Values.NEXTCLOUD_MAINTENANCE_WINDOW }}"
 EOL
 # shellcheck disable=SC1083
 find ./ -name '*nextcloud-deployment.yaml' -exec sed -i "/^.*\- env:/r /tmp/additional.config"  \{} \;
@@ -312,8 +289,44 @@ EOL
 # shellcheck disable=SC1083
 find ./ -name '*talk-deployment.yaml' -exec sed -i "/^.*\- env:/r /tmp/additional-talk.config"  \{} \;
 
-# shellcheck disable=SC1083
-find ./ -name '*deployment.yaml' -exec sed -i '/image: nextcloud/s/$/"/;s|image: nextcloud/|image: "{{ .Values.IMAGE_MIRROR_PREFIX }}{{ .Values.NEXTCLOUD_IMAGE_ORG }}/|;' \{} \;
+cat << EOL > templates/nextcloud-aio-networkpolicy.yaml
+{{- if eq .Values.NETWORK_POLICY_ENABLED "yes" }}
+# https://github.com/ahmetb/kubernetes-network-policy-recipes/blob/master/04-deny-traffic-from-other-namespaces.md
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  namespace: "{{ .Values.NAMESPACE }}"
+  name: nextcloud-aio-deny-from-other-namespaces
+spec:
+  podSelector:
+    matchLabels:
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+  - from:
+    - podSelector: {}
+  egress:
+  - {} # Allows all egress traffic
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  namespace: "{{ .Values.NAMESPACE }}"
+  name: nextcloud-aio-webserver-allow
+spec:
+  podSelector:
+    matchExpressions:
+      - key: io.kompose.service
+        operator: In
+        values:
+          - nextcloud-aio-apache
+  policyTypes:
+    - Ingress
+  ingress:
+    - {} # Allows all ingress traffic
+{{- end }}
+EOL
 
 cd ../
 mkdir -p ../helm-chart/
@@ -336,7 +349,6 @@ sed -i 's|= |: |' /tmp/sample.conf
 sed -i '/^NEXTCLOUD_DATADIR/d' /tmp/sample.conf
 sed -i '/^APACHE_IP_BINDING/d' /tmp/sample.conf
 sed -i '/^NEXTCLOUD_MOUNT/d' /tmp/sample.conf
-sed -i '/^IPV6_NETWORK/d' /tmp/sample.conf
 sed -i '/_ENABLED.*/s/ yes / "yes" /' /tmp/sample.conf
 sed -i '/_ENABLED.*/s/ no / "no" /' /tmp/sample.conf
 sed -i 's|^NEXTCLOUD_TRUSTED_CACERTS_DIR: .*|NEXTCLOUD_TRUSTED_CACERTS_DIR:        # Setting this to any value allows to automatically import root certificates into the Nextcloud container|' /tmp/sample.conf
@@ -355,12 +367,15 @@ sed -i "s|NEXTCLOUD_DATA_STORAGE_SIZE: 1Gi|NEXTCLOUD_DATA_STORAGE_SIZE: 5Gi|" /t
 cat << ADDITIONAL_CONFIG >> /tmp/sample.conf
 
 NAMESPACE: default        # By changing this, you can adjust the namespace of the installation which allows to install multiple instances on one kubernetes cluster
+NAMESPACE_DISABLED: "no"        # By setting this to "yes", you can disabled the creation of the namespace so that you can use a pre-created one
+NETWORK_POLICY_ENABLED: "no"        # By setting this to "yes", you can enable a network policy that limits network access to the same namespace. Except the Web server service which is reachable from all endpoints.
 SUBSCRIPTION_KEY:        # This allows to set the Nextcloud Enterprise key via ENV
 SERVERINFO_TOKEN:        # This allows to set the serverinfo app token for monitoring your Nextcloud via the serverinfo app
 APPS_ALLOWLIST:        # This allows to configure allowed apps that will be shown in Nextcloud's Appstore. You need to enter the app-IDs of the apps here and separate them with spaces. E.g. 'files richdocuments'
 ADDITIONAL_TRUSTED_PROXY:        # Allows to add one additional ip-address to Nextcloud's trusted proxies and to the Office WOPI-allowlist automatically. Set it e.g. like this: 'your.public.ip-address'. You can also use an ip-range here.
 ADDITIONAL_TRUSTED_DOMAIN:        # Allows to add one domain to Nextcloud's trusted domains and also generates a certificate automatically for it
 NEXTCLOUD_DEFAULT_QUOTA: "10 GB"       # Allows to adjust the default quota that will be taken into account in Nextcloud for new users. Setting it to "unlimited" will set it to unlimited
+NEXTCLOUD_MAINTENANCE_WINDOW:        # Allows to define the maintenance window for Nextcloud. See https://docs.nextcloud.com/server/stable/admin_manual/configuration_server/background_jobs_configuration.html#parameters for possible values
 SMTP_HOST:        # (empty by default): The hostname of the SMTP server.
 SMTP_SECURE:         # (empty by default): Set to 'ssl' to use SSL, or 'tls' to use STARTTLS.
 SMTP_PORT:         # (default: '465' for SSL and '25' for non-secure connections): Optional port for the SMTP connection. Use '587' for an alternative port for STARTTLS.
@@ -371,10 +386,6 @@ MAIL_FROM_ADDRESS:         # (not set by default): Set the local-part for the 'f
 MAIL_DOMAIN:         # (not set by default): Set a different domain for the emails than the domain where Nextcloud is installed.
 TALK_MAX_STREAM_BITRATE: "1048576"         # This allows to adjust the max stream bitrate of the talk hpb
 TALK_MAX_SCREEN_BITRATE: "2097152"         # This allows to adjust the max stream bitrate of the talk hpb
-
-IMAGE_MIRROR_PREFIX:          # Setting this allows you to pull Nextcloud images through a mirror registry.
-NEXTCLOUD_IMAGE_ORG: nextcloud          # Setting this allows you to change the image's org name in case a different image needs to be used e.g. for compliance reasons.
-ALPINE_IMAGE_ORG:          # Setting this allows you to change the image's org name in case a different image needs to be used e.g. for compliance reasons.
 ADDITIONAL_CONFIG
 
 mv /tmp/sample.conf ../helm-chart/values.yaml
@@ -404,6 +415,13 @@ done
 find ./ -name "*nextcloud-aio-elasticsearch-persistentvolumeclaim.yaml" -exec sed -i "1i\\{{- if eq .Values.FULLTEXTSEARCH_ENABLED \"yes\" }}" \{} \; 
 # shellcheck disable=SC1083
 find ./ -name "*nextcloud-aio-elasticsearch-persistentvolumeclaim.yaml" -exec sed -i "$ a {{- end }}" \{} \; 
+
+cat << EOL >> /tmp/security.conf
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+EOL
+# shellcheck disable=SC1083
+find ./ \( -not -name '*nextcloud-deployment.yaml*' -not -name '*onlyoffice-deployment.yaml*' -name "*deployment.yaml" \) -exec sed -i "/^.*securityContext:$/r /tmp/security.conf" \{} \; 
 
 chmod 777 -R ./
 

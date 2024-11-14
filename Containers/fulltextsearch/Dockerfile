@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:latest
 # Probably from here https://github.com/elastic/elasticsearch/blob/main/distribution/docker/src/docker/Dockerfile
-FROM elasticsearch:8.14.1
+FROM elasticsearch:8.15.3
 
 USER root
 
-ARG DEBIAN_FRONTEND noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
 
 # hadolint ignore=DL3008
 RUN set -ex; \
@@ -14,8 +14,7 @@ RUN set -ex; \
     apt-get install -y --no-install-recommends \
         tzdata \
     ; \
-    rm -rf /var/lib/apt/lists/*; \
-    elasticsearch-plugin install --batch ingest-attachment
+    rm -rf /var/lib/apt/lists/*;
 
 USER 1000:0
 

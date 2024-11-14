@@ -11,13 +11,19 @@ directory_empty() {
 }
 
 run_upgrade_if_needed_due_to_app_update() {
+    if php /var/www/html/occ status | grep maintenance | grep -q true; then
+        php /var/www/html/occ maintenance:mode --off
+    fi
     if php /var/www/html/occ status | grep needsDbUpgrade | grep -q true; then
-        # Disable integrity check temporarily until next update
-        php /var/www/html/occ config:system:set integrity.check.disabled --type bool --value true
         php /var/www/html/occ upgrade
         php /var/www/html/occ app:enable nextcloud-aio --force
     fi
 }
+
+# Adjust DATABASE_TYPE to by Nextcloud supported value
+if [ "$DATABASE_TYPE" = postgres ]; then
+    export DATABASE_TYPE=pgsql
+fi
 
 # Only start container if redis is accessible
 # shellcheck disable=SC2153
@@ -99,6 +105,20 @@ if ! [ -f "$NEXTCLOUD_DATA_DIR/skip.update" ]; then
             # Write output to logfile.
             exec > >(tee -i "/var/www/html/data/update.log")
             exec 2>&1
+            # Run built-in upgrader if version is below 28.0.2 to upgrade to 28.0.x first
+            touch "$NEXTCLOUD_DATA_DIR/update.failed"
+            if ! version_greater "$installed_version" "28.0.1.20"; then
+                php /var/www/html/updater/updater.phar --no-interaction --no-backup
+                if ! php /var/www/html/occ upgrade || php /var/www/html/occ status | grep maintenance | grep -q 'true'; then
+                    echo "Upgrade failed. Please restore from backup."
+                    bash /notify.sh "Nextcloud update to $image_version failed!" "Please restore from backup!"
+                    exit 1
+                fi
+                rm "$NEXTCLOUD_DATA_DIR/update.failed"
+                # shellcheck disable=SC2016
+                installed_version="$(php -r 'require "/var/www/html/version.php"; echo implode(".", $OC_Version);')"
+                INSTALLED_MAJOR="${installed_version%%.*}"
+            fi
         fi
 
         if [ "$installed_version" != "0.0.0.0" ] && [ "$((IMAGE_MAJOR - INSTALLED_MAJOR))" -gt 1 ]; then
@@ -222,12 +242,12 @@ if ! [ -f "$NEXTCLOUD_DATA_DIR/skip.update" ]; then
 );
 DATADIR_PERMISSION_CONF
 
-            echo "Installing with PostgreSQL database"
+            echo "Installing with $DATABASE_TYPE database"
             # Set a default value for POSTGRES_PORT
             if [ -z "$POSTGRES_PORT" ]; then
               POSTGRES_PORT=5432
             fi
-            INSTALL_OPTIONS+=(--database pgsql --database-name "$POSTGRES_DB" --database-user "$POSTGRES_USER" --database-pass "$POSTGRES_PASSWORD" --database-host "$POSTGRES_HOST" --database-port "$POSTGRES_PORT")
+            INSTALL_OPTIONS+=(--database "$DATABASE_TYPE" --database-name "$POSTGRES_DB" --database-user "$POSTGRES_USER" --database-pass "$POSTGRES_PASSWORD" --database-host "$POSTGRES_HOST" --database-port "$POSTGRES_PORT")
 
             echo "Starting Nextcloud installation..."
             if ! php /var/www/html/occ maintenance:install "${INSTALL_OPTIONS[@]}"; then
@@ -295,7 +315,6 @@ DATADIR_PERMISSION_CONF
                 php /var/www/html/occ app:disable updatenotification
                 rm -rf /var/www/html/apps/updatenotification
                 php /var/www/html/occ app:enable nextcloud-aio --force
-                php /var/www/html/occ db:add-missing-indices
                 php /var/www/html/occ db:add-missing-columns
                 php /var/www/html/occ db:add-missing-primary-keys
                 yes | php /var/www/html/occ db:convert-filecache-bigint
@@ -422,13 +441,15 @@ DATADIR_PERMISSION_CONF
 
             # Apply optimization
             echo "Doing some optimizations..."
-            php /var/www/html/occ maintenance:repair
-            php /var/www/html/occ db:add-missing-indices
-            php /var/www/html/occ db:add-missing-columns
-            php /var/www/html/occ db:add-missing-primary-keys
-            yes | php /var/www/html/occ db:convert-filecache-bigint
-            php /var/www/html/occ maintenance:mimetype:update-js
-            php /var/www/html/occ maintenance:mimetype:update-db
+            if [ "$NEXTCLOUD_SKIP_DATABASE_OPTIMIZATION" != yes ]; then
+                php /var/www/html/occ maintenance:repair --include-expensive
+                php /var/www/html/occ db:add-missing-indices
+                php /var/www/html/occ db:add-missing-columns
+                php /var/www/html/occ db:add-missing-primary-keys
+                yes | php /var/www/html/occ db:convert-filecache-bigint
+            else
+                php /var/www/html/occ maintenance:repair
+            fi
         fi
     fi
 
@@ -474,6 +495,12 @@ if [ -f "$NEXTCLOUD_DATA_DIR/fingerprint.update" ]; then
     rm "$NEXTCLOUD_DATA_DIR/fingerprint.update"
 fi
 
+# Perform preview scan if previews were excluded from restore
+if [ -f "$NEXTCLOUD_DATA_DIR/trigger-preview.scan" ]; then
+    php /var/www/html/occ files:scan-app-data preview -vvv
+    rm "$NEXTCLOUD_DATA_DIR/trigger-preview.scan"
+fi
+
 # AIO one-click settings start # Do not remove or change this line!
 # Apply one-click-instance settings
 echo "Applying one-click-instance settings..."
@@ -504,9 +531,10 @@ if [ -n "$SERVERINFO_TOKEN" ] && [ -z "$(php /var/www/html/occ config:app:get se
     php /var/www/html/occ config:app:set serverinfo token --value="$SERVERINFO_TOKEN"
 fi
 # Set maintenance window so that no warning is shown in the admin overview
-if [ -z "$(php /var/www/html/occ config:system:get maintenance_window_start)" ]; then
-    php /var/www/html/occ config:system:set maintenance_window_start --type=int --value=100
+if [ -z "$NEXTCLOUD_MAINTENANCE_WINDOW" ]; then
+    NEXTCLOUD_MAINTENANCE_WINDOW=100
 fi
+php /var/www/html/occ config:system:set maintenance_window_start --type=int --value="$NEXTCLOUD_MAINTENANCE_WINDOW"
 
 # Apply network settings
 echo "Applying network settings..."
@@ -514,6 +542,7 @@ php /var/www/html/occ config:system:set allow_local_remote_servers --type=bool -
 php /var/www/html/occ config:system:set davstorage.request_timeout --value="$PHP_MAX_TIME" --type=int
 php /var/www/html/occ config:system:set trusted_domains 1 --value="$NC_DOMAIN"
 php /var/www/html/occ config:system:set overwrite.cli.url --value="https://$NC_DOMAIN/"
+php /var/www/html/occ config:system:set documentation_url.server_logs --value="https://github.com/nextcloud/all-in-one/discussions/5425"
 php /var/www/html/occ config:system:set htaccess.RewriteBase --value="/"
 php /var/www/html/occ maintenance:update:htaccess
 
@@ -582,6 +611,10 @@ if [ "$COLLABORA_ENABLED" = 'yes' ]; then
         COLLABORA_HOST="$NC_DOMAIN"
     fi
     set +x
+    # Remove richdcoumentscode if it should be incorrectly installed
+    if [ -d "/var/www/html/custom_apps/richdocumentscode" ]; then
+        php /var/www/html/occ app:remove richdocumentscode
+    fi
     if ! [ -d "/var/www/html/custom_apps/richdocuments" ]; then
         php /var/www/html/occ app:install richdocuments
     elif [ "$(php /var/www/html/occ config:app:get richdocuments enabled)" != "yes" ]; then
@@ -733,8 +766,8 @@ if [ "$CLAMAV_ENABLED" = 'yes' ]; then
         php /var/www/html/occ config:app:set files_antivirus av_mode --value="daemon"
         php /var/www/html/occ config:app:set files_antivirus av_port --value="3310"
         php /var/www/html/occ config:app:set files_antivirus av_host --value="$CLAMAV_HOST"
-        php /var/www/html/occ config:app:set files_antivirus av_stream_max_length --value="104857600"
-        php /var/www/html/occ config:app:set files_antivirus av_max_file_size --value="104857600"
+        php /var/www/html/occ config:app:set files_antivirus av_stream_max_length --value="$CLAMAV_MAX_SIZE"
+        php /var/www/html/occ config:app:set files_antivirus av_max_file_size --value="$CLAMAV_MAX_SIZE"
         php /var/www/html/occ config:app:set files_antivirus av_infected_action --value="only_log"
     fi
 else
@@ -816,19 +849,34 @@ else
 fi
 
 # Docker socket proxy
-if version_greater "$installed_version" "27.1.2.0"; then
-    if [ "$DOCKER_SOCKET_PROXY_ENABLED" = 'yes' ]; then
-        if ! [ -d "/var/www/html/custom_apps/app_api" ]; then
-            php /var/www/html/occ app:install app_api
-        elif [ "$(php /var/www/html/occ config:app:get app_api enabled)" != "yes" ]; then
-            php /var/www/html/occ app:enable app_api
-        elif [ "$SKIP_UPDATE" != 1 ]; then
-            php /var/www/html/occ app:update app_api
-        fi
-    else
-        if [ "$REMOVE_DISABLED_APPS" = yes ] && [ -d "/var/www/html/custom_apps/app_api" ]; then
-            php /var/www/html/occ app:remove app_api
-        fi
+if [ "$DOCKER_SOCKET_PROXY_ENABLED" = 'yes' ]; then
+    if ! [ -d "/var/www/html/custom_apps/app_api" ]; then
+        php /var/www/html/occ app:install app_api
+    elif [ "$(php /var/www/html/occ config:app:get app_api enabled)" != "yes" ]; then
+        php /var/www/html/occ app:enable app_api
+    elif [ "$SKIP_UPDATE" != 1 ]; then
+        php /var/www/html/occ app:update app_api
+    fi
+else
+    if [ "$REMOVE_DISABLED_APPS" = yes ] && [ -d "/var/www/html/custom_apps/app_api" ]; then
+        php /var/www/html/occ app:remove app_api
+    fi
+fi
+
+# Whiteboard app
+if [ "$WHITEBOARD_ENABLED" = 'yes' ]; then
+    if ! [ -d "/var/www/html/custom_apps/whiteboard" ]; then
+        php /var/www/html/occ app:install whiteboard
+    elif [ "$(php /var/www/html/occ config:app:get whiteboard enabled)" != "yes" ]; then
+        php /var/www/html/occ app:enable whiteboard
+    elif [ "$SKIP_UPDATE" != 1 ]; then
+        php /var/www/html/occ app:update whiteboard
+    fi
+    php /var/www/html/occ config:app:set whiteboard collabBackendUrl --value="https://$NC_DOMAIN/whiteboard"
+    php /var/www/html/occ config:app:set whiteboard jwt_secret_key --value="$WHITEBOARD_SECRET"
+else
+    if [ "$REMOVE_DISABLED_APPS" = yes ] && [ -d "/var/www/html/custom_apps/whiteboard" ]; then
+        php /var/www/html/occ app:remove whiteboard
     fi
 fi
 
