@@ -3,6 +3,7 @@
     {
       "container_name": "nextcloud-aio-apache",
       "image_tag": "%AIO_CHANNEL%",
+      "documentation": "https://github.com/nextcloud/all-in-one/discussions/2105",
       "depends_on": [
         "nextcloud-aio-onlyoffice",
         "nextcloud-aio-collabora",
@@ -15,6 +16,14 @@
       "image": "nextcloud/aio-apache",
       "user": "33",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "ports": [
         {
           "ip_binding": "%APACHE_IP_BINDING%",
@@ -59,9 +68,6 @@
         "nextcloud_aio_nextcloud",
         "nextcloud_aio_apache"
       ],
-      "networks": [
-        "nextcloud-aio"
-      ],
       "read_only": true,
       "tmpfs": [
         "/var/log/supervisord",
@@ -81,6 +87,14 @@
       "image": "nextcloud/aio-postgresql",
       "user": "999",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "expose": [
         "5432"
       ],
@@ -114,9 +128,6 @@
         "nextcloud_aio_database",
         "nextcloud_aio_database_dump"
       ],
-      "networks": [
-        "nextcloud-aio"
-      ],
       "read_only": true,
       "tmpfs": [
         "/var/run/postgresql"
@@ -140,6 +151,14 @@
       "display_name": "Nextcloud",
       "image": "nextcloud/aio-nextcloud",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "expose": [
         "9000",
         "9001"
@@ -178,6 +197,7 @@
         }
       ],
       "environment": [
+        "NEXTCLOUD_HOST=nextcloud-aio-nextcloud",
         "POSTGRES_HOST=nextcloud-aio-database",
         "POSTGRES_PORT=5432",
         "POSTGRES_PASSWORD=%DATABASE_PASSWORD%",
@@ -185,6 +205,8 @@
         "POSTGRES_USER=nextcloud",
         "REDIS_HOST=nextcloud-aio-redis",
         "REDIS_HOST_PASSWORD=%REDIS_PASSWORD%",
+        "APACHE_HOST=nextcloud-aio-apache",
+        "APACHE_PORT=%APACHE_PORT%",
         "AIO_TOKEN=%AIO_TOKEN%",
         "NC_DOMAIN=%NC_DOMAIN%",
         "ADMIN_USER=admin",
@@ -226,7 +248,6 @@
         "FULLTEXTSEARCH_PASSWORD=%FULLTEXTSEARCH_PASSWORD%",
         "DOCKER_SOCKET_PROXY_ENABLED=%DOCKER_SOCKET_PROXY_ENABLED%",
         "REMOVE_DISABLED_APPS=%REMOVE_DISABLED_APPS%",
-        "APACHE_PORT=%APACHE_PORT%",
         "ADDITIONAL_TRUSTED_PROXY=%CADDY_IP_ADDRESS%",
         "THIS_IS_AIO=true",
         "IMAGINARY_SECRET=%IMAGINARY_SECRET%",
@@ -238,11 +259,9 @@
       "devices": [
         "/dev/dri"
       ],
+      "enable_nvidia_gpu": true,
       "backup_volumes": [
         "nextcloud_aio_nextcloud"
-      ],
-      "networks": [
-        "nextcloud-aio"
       ],
       "cap_drop": [
         "NET_RAW"
@@ -255,6 +274,14 @@
       "image": "nextcloud/aio-notify-push",
       "user": "33",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "expose": [
         "7867"
       ],
@@ -273,6 +300,7 @@
       "environment": [
         "NC_DOMAIN=%NC_DOMAIN%",
         "NEXTCLOUD_HOST=nextcloud-aio-nextcloud",
+        "TZ=%TIMEZONE%",
         "REDIS_HOST=nextcloud-aio-redis",
         "REDIS_HOST_PASSWORD=%REDIS_PASSWORD%",
         "POSTGRES_HOST=nextcloud-aio-database",
@@ -282,9 +310,6 @@
         "POSTGRES_USER=nextcloud"
       ],
       "restart": "unless-stopped",
-      "networks": [
-        "nextcloud-aio"
-      ],
       "read_only": true,
       "cap_drop": [
         "NET_RAW"
@@ -297,6 +322,14 @@
       "image": "nextcloud/aio-redis",
       "user": "999",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "expose": [
         "6379"
       ],
@@ -318,9 +351,6 @@
         "RECORDING_SECRET"
       ],
       "restart": "unless-stopped",
-      "networks": [
-        "nextcloud-aio"
-      ],
       "read_only": true,
       "cap_drop": [
         "NET_RAW"
@@ -332,15 +362,22 @@
       "documentation": "https://github.com/nextcloud/all-in-one/discussions/1358",
       "display_name": "Collabora",
       "image": "nextcloud/aio-collabora",
-      "user": "100",
       "init": true,
+      "healthcheck": {
+        "start_period": "60s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 9
+      },
       "expose": [
         "9980"
       ],
       "internal_port": "9980",
       "environment": [
         "aliasgroup1=https://%NC_DOMAIN%:443",
-        "extra_params=--o:ssl.enable=false --o:ssl.termination=true --o:mount_jail_tree=false --o:logging.level=warning --o:home_mode.enable=true %COLLABORA_SECCOMP_POLICY% --o:remote_font_config.url=https://%NC_DOMAIN%/apps/richdocuments/settings/fonts.json",
+        "extra_params=--o:ssl.enable=false --o:ssl.termination=true --o:mount_jail_tree=false --o:logging.level=warning --o:home_mode.enable=true %COLLABORA_SECCOMP_POLICY% --o:remote_font_config.url=https://%NC_DOMAIN%/apps/richdocuments/settings/fonts.json --o:net.post_allow.host[0]=.+",
         "dictionaries=%COLLABORA_DICTIONARIES%",
         "TZ=%TIMEZONE%",
         "server_name=%NC_DOMAIN%",
@@ -353,9 +390,6 @@
       ],
       "profiles": [
         "collabora"
-      ],
-      "networks": [
-        "nextcloud-aio"
       ],
       "cap_add": [
         "MKNOD",
@@ -373,6 +407,14 @@
       "image": "nextcloud/aio-talk",
       "user": "1000",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "ports": [
         {
           "ip_binding": "",
@@ -408,9 +450,6 @@
         "talk",
         "talk-recording"
       ],
-      "networks": [
-        "nextcloud-aio"
-      ],
       "read_only": true,
       "tmpfs": [
         "/var/log/supervisord",
@@ -430,6 +469,14 @@
       "image": "nextcloud/aio-talk-recording",
       "user": "122",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "expose": [
         "1234"
       ],
@@ -456,9 +503,10 @@
       "profiles": [
         "talk-recording"
       ],
-      "networks": [
-        "nextcloud-aio"
+      "devices": [
+        "/dev/dri"
       ],
+      "enable_nvidia_gpu": true,
       "read_only": true,
       "tmpfs": [
         "/conf"
@@ -592,6 +640,14 @@
       "image": "nextcloud/aio-clamav",
       "user": "100",
       "init": false,
+      "healthcheck": {
+        "start_period": "60s",
+        "test": "clamdcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 9
+      },
       "expose": [
         "3310"
       ],
@@ -612,9 +668,6 @@
       "profiles": [
         "clamav"
       ],
-      "networks": [
-        "nextcloud-aio"
-      ],
       "read_only": true,
       "tmpfs": [
         "/var/lock",
@@ -631,6 +684,14 @@
       "display_name": "OnlyOffice",
       "image": "nextcloud/aio-onlyoffice",
       "init": true,
+      "healthcheck": {
+        "start_period": "60s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 9
+      },
       "expose": [
         "80"
       ],
@@ -659,9 +720,6 @@
       "profiles": [
         "onlyoffice"
       ],
-      "networks": [
-        "nextcloud-aio"
-      ],
       "cap_drop": [
         "NET_RAW"
       ]
@@ -673,6 +731,14 @@
       "image": "nextcloud/aio-imaginary",
       "user": "65534",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "expose": [
         "9000"
       ],
@@ -691,9 +757,6 @@
       "profiles": [
         "imaginary"
       ],
-      "networks": [
-        "nextcloud-aio"
-      ],
       "read_only": true,
       "tmpfs": [
         "/tmp"
@@ -709,13 +772,21 @@
       "display_name": "Fulltextsearch",
       "image": "nextcloud/aio-fulltextsearch",
       "init": false,
+      "healthcheck": {
+        "start_period": "60s",
+        "test": "/healthcheck.sh",
+        "interval": "10s",
+        "timeout": "5s",
+        "start_interval": "5s",
+        "retries": 5
+      },
       "expose": [
         "9200"
       ],
       "internal_port": "9200",
       "environment": [
         "TZ=%TIMEZONE%",
-        "ES_JAVA_OPTS=-Xms512M -Xmx512M",
+        "ES_JAVA_OPTS=%FULLTEXTSEARCH_JAVA_OPTIONS%",
         "bootstrap.memory_lock=true",
         "cluster.name=nextcloud-aio",
         "discovery.type=single-node",
@@ -735,9 +806,6 @@
       "restart": "unless-stopped",
       "profiles": [
         "fulltextsearch"
-      ],
-      "networks": [
-        "nextcloud-aio"
       ],
       "secrets": [
         "FULLTEXTSEARCH_PASSWORD"
@@ -779,8 +847,19 @@
       "image": "nextcloud/aio-whiteboard",
       "user": "65534",
       "init": true,
+      "healthcheck": {
+        "start_period": "0s",
+        "test": "/healthcheck.sh",
+        "interval": "30s",
+        "timeout": "30s",
+        "start_interval": "5s",
+        "retries": 3
+      },
       "expose": [
         "3002"
+      ],
+      "tmpfs": [
+        "/tmp"
       ],
       "internal_port": "3002",
       "environment": [
@@ -789,7 +868,8 @@
         "JWT_SECRET_KEY=%WHITEBOARD_SECRET%",
         "STORAGE_STRATEGY=redis",
         "REDIS_HOST=nextcloud-aio-redis",
-        "REDIS_HOST_PASSWORD=%REDIS_PASSWORD%"
+        "REDIS_HOST_PASSWORD=%REDIS_PASSWORD%",
+        "BACKUP_DIR=/tmp"
       ],
       "secrets": [
         "WHITEBOARD_SECRET",
@@ -800,9 +880,6 @@
         "whiteboard"
       ],
       "read_only": true,
-      "networks": [
-        "nextcloud-aio"
-      ],
       "cap_drop": [
         "NET_RAW"
       ]

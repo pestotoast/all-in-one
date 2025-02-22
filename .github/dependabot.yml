@@ -6,12 +6,17 @@ updates:
     interval: "daily"
     time: "12:00"
   open-pull-requests-limit: 10
+  rebase-strategy: "disabled"
+  labels:
+  - 3. to review
+  - dependencies
 - package-ecosystem: composer
   directory: "/php/"
   schedule:
     interval: "daily"
     time: "12:00"
   open-pull-requests-limit: 10
+  rebase-strategy: "auto"
   labels:
   - 3. to review
   - dependencies
@@ -39,6 +44,7 @@ updates:
     interval: "daily"
     time: "04:00"
   open-pull-requests-limit: 10
+  rebase-strategy: "disabled"
   labels:
   - 3. to review
   - dependencies

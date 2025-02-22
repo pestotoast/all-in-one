@@ -17,7 +17,7 @@
 
     <div class="container">
         <main>
-            <h1>Nextcloud AIO v10.0.0</h1>
+            <h1>Nextcloud AIO v10.6.1</h1>
 
             {# Add 2nd tab warning #}
             <script type="text/javascript" src="second-tab-warning.js"></script>
@@ -33,7 +33,7 @@
             {% set isBackupOrRestoreRunning = false %}
             {% set isApacheStarting = false %}
             {# Setting newMajorVersion to '' will hide corresponding options/elements, can be set to an integer like 26 in order to show corresponding elements. If set, also increase installLatestMajor in https://github.com/nextcloud/all-in-one/blob/main/php/src/Controller/DockerController.php #}
-            {% set newMajorVersion = '' %}
+            {% set newMajorVersion = 31 %}
 
             {% if is_backup_container_running == true %}
                 {% if borg_backup_mode == 'backup' or borg_backup_mode == 'restore' %}
@@ -101,7 +101,7 @@
                             {% else %}
                                 <p>AIO is currently in "reverse proxy mode" which means that it can be installed behind a web server or reverse proxy (like Apache, Nginx, Caddy, Cloudflare Tunnel and else) and does not do the TLS proxying itself.</p>
                             {% endif %}
-                            <p>Please type the domain that will be used for Nextcloud below in order to create a new AIO instance.</p>
+                            <p>Please type the domain that will be used for Nextcloud.</p>
                             {% if skip_domain_validation == true %}
                                 <p><strong>Please note:</strong> The domain validation is disabled so any domain will be accepted here! Make sure you do not make a typo here as you will not be able to change it afterwards!</p>
                             {% endif %}
@@ -115,7 +115,7 @@
                                 <p>Make sure that this server is reachable on port 443 (port 443/tcp is open/forwarded in your firewall/router and 443/udp as well if you want to enable http3) and that you've correctly set up the DNS config for the domain that you enter (set the A record to your public ipv4-address and if you need ipv6, set the AAAA record to your public ipv6-address. A CNAME record is, of course, also possible). You should see hints on what went wrong in the top right corner if your domain is not accepted.</p>
                                 <details>
                                     <summary>Click here for further hints</summary>
-                                    <p>If you do not have a domain yet, you can get one for free e.g. from duckdns.org and others.</p>
+                                    <p>If you do not have a domain yet, you can get one for free e.g. from duckdns.org and others. Recommended is to use <a href="https://github.com/nextcloud/all-in-one/discussions/5439">Tailscale</a></p>
                                     <p>If you have a dynamic public IP-address, you can use e.g. <a href="https://ddclient.net/">DDclient</a> with a compatible domain provider for DNS updates.</p>
                                     <p>If you only want to install AIO locally without exposing it to the public internet or if you cannot do so, feel free to follow <a href="https://github.com/nextcloud/all-in-one/blob/main/local-instance.md">this documentation</a>.</p>
                                     <p>If you should be using Cloudflare Proxy for your domain, make sure to disable the Proxy feature temporarily as it might block the domain validation attempts.</p>
@@ -196,7 +196,7 @@
                                 </p>
                                 <form method="POST" action="/api/configuration" class="xhr">
                                     <label>Local backup location</label> <input type="text" name="borg_restore_host_location" value="{{borg_backup_host_location}}" placeholder="/mnt/backup"/><br>
-                                    <label>Remote borg repo</label> <input type="text" name="borg_restore_remote_repo" value="{{borg_remote_repo}}" placeholder="user@host:/path/to/repo"/><br>
+                                    <label>Remote borg repo</label> <input type="text" name="borg_restore_remote_repo" value="{{borg_remote_repo}}" placeholder="ssh://user@host:port/path/to/repo"/><br>
                                     <label>Borg passphrase</label> <input type="text" name="borg_restore_password" value="{{borg_restore_password}}" placeholder="encryption password"/><br>
                                     <input type="hidden" name="{{csrf.keys.name}}" value="{{csrf.name}}">
                                     <input type="hidden" name="{{csrf.keys.value}}" value="{{csrf.value}}">
@@ -282,6 +282,9 @@
                                             {% if container.GetDocumentation() != '' %}
                                                 (<a href="{{ container.GetDocumentation() }}">docs</a>)
                                             {% endif %}
+                                            {% if container.GetUiSecret() != '' %}
+                                                (password: {{ container.GetUiSecret() }})
+                                            {% endif %}
                                             </span>
                                         {% elseif container.GetRunningState().value == 'running' %}
                                             <span class="status success"></span>
@@ -289,12 +292,18 @@
                                             {% if container.GetDocumentation() != '' %}
                                                 (<a href="{{ container.GetDocumentation() }}">docs</a>)
                                             {% endif %}
+                                            {% if container.GetUiSecret() != '' %}
+                                                (password: {{ container.GetUiSecret() }})
+                                            {% endif %}
                                             </span>
                                         {% else %}
                                             <span class="status error"></span>
                                             <span>{{ container.GetDisplayName() }} (<a href="/api/docker/logs?id={{ container.GetIdentifier() }}" target="_blank" rel="noopener">Stopped</a>)
                                             {% if container.GetDocumentation() != '' %}
                                                 (<a href="{{ container.GetDocumentation() }}">docs</a>)
+                                            {% endif %}
+                                            {% if container.GetUiSecret() != '' %}
+                                                (password: {{ container.GetUiSecret() }})
                                             {% endif %}
                                             </span>
                                         {% endif %}
@@ -313,7 +322,7 @@
                                 {% if newMajorVersion != '' and isAnyRunning == true and isApacheStarting != true %}
                                     <details>
                                     <summary>Note about <strong>Nextcloud Hub {{ newMajorVersion - 21 }}</strong></summary>
-                                        <p>If you haven't upgraded to Nextcloud Hub {{ newMajorVersion - 21 }} yet and want to do that now, feel free to follow <strong><a href="https://github.com/nextcloud/all-in-one/discussions/5133">this documentation</a></strong></p>
+                                        <p>If you haven't upgraded to Nextcloud Hub {{ newMajorVersion - 21 }} yet and want to do that now, feel free to follow <strong><a href="https://github.com/nextcloud/all-in-one/discussions/6053">this documentation</a></strong></p>
                                     </details>
                                 {% endif %}
                             {% endif %}
@@ -394,7 +403,7 @@
                                 </p>
                                 <form method="POST" action="/api/configuration" class="xhr">
                                     <label>Local backup location</label> <input type="text" name="borg_backup_host_location" placeholder="/mnt/backup"/><br>
-                                    <label>Remote borg repo</label> <input type="text" name="borg_remote_repo" placeholder="user@host:/path/to/repo"/><br>
+                                    <label>Remote borg repo</label> <input type="text" name="borg_remote_repo" placeholder="ssh://user@host:port/path/to/repo"/><br>
                                     <input type="hidden" name="{{csrf.keys.name}}" value="{{csrf.name}}">
                                     <input type="hidden" name="{{csrf.keys.value}}" value="{{csrf.value}}">
                                     <input type="submit" value="Submit backup location" />
@@ -435,7 +444,7 @@
                                             <p>You may change the backup path again since the initial backup was not successful. After submitting the new value, you need to click on <strong>Create Backup</strong> to test the new value.</p>
                                             <form method="POST" action="/api/configuration" class="xhr">
                                                 <label>Local backup location</label> <input type="text" name="borg_backup_host_location" placeholder="/mnt/backup"/><br>
-                                                <label>Remote borg repo</label> <input type="text" name="borg_remote_repo" placeholder="user@host:/path/to/repo"/><br>
+                                                <label>Remote borg repo</label> <input type="text" name="borg_remote_repo" placeholder="ssh://user@host:port/path/to/repo"/><br>
                                                 <input type="hidden" name="{{csrf.keys.name}}" value="{{csrf.name}}">
                                                 <input type="hidden" name="{{csrf.keys.value}}" value="{{csrf.value}}">
                                                 <input type="submit" value="Set backup location again" />
@@ -504,6 +513,9 @@
                                         {% endif %}
 
                                         {% if has_backup_run_once == true %}
+                                            <h3>Backup Viewer</h3>
+                                            <p>There is now a community container that allows to access your backups in a web session. See <a href="https://github.com/nextcloud/all-in-one/tree/main/community-containers/borgbackup-viewer"><strong>this documentation</strong></a>.</p>
+
                                             <h3>Backup check</h3>
                                             <p>Click on the button below to perform a backup integrity check. This is an option that verifies that your backup is intact. It shouldn't be needed in most situations.</p>
                                             <form method="POST" action="/api/docker/backup-check" class="xhr">

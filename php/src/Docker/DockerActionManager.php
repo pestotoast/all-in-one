@@ -167,7 +167,7 @@ readonly class DockerActionManager {
         try {
             $this->guzzleClient->post($url);
         } catch (RequestException $e) {
-            throw new \Exception("Could not start container " . $container->GetIdentifier() . ": " . $e->getMessage());
+            throw new \Exception("Could not start container " . $container->GetIdentifier() . ": " . $e->getResponse()?->getBody()->getContents());
         }
     }
 
@@ -357,6 +357,8 @@ readonly class DockerActionManager {
                     $replacements[1] = $this->configurationManager->GetNextcloudMaxTime();
                 } elseif ($out[1] === 'BORG_RETENTION_POLICY') {
                     $replacements[1] = $this->configurationManager->GetBorgRetentionPolicy();
+                } elseif ($out[1] === 'FULLTEXTSEARCH_JAVA_OPTIONS') {
+                    $replacements[1] = $this->configurationManager->GetFulltextsearchJavaOptions();
                 } elseif ($out[1] === 'NEXTCLOUD_TRUSTED_CACERTS_DIR') {
                     $replacements[1] = $this->configurationManager->GetTrustedCacertsDir();
                 } elseif ($out[1] === 'ADDITIONAL_DIRECTORIES_BACKUP') {
@@ -491,6 +493,17 @@ readonly class DockerActionManager {
             $requestBody['HostConfig']['Devices'] = $devices;
         }
 
+        if ($container->isNvidiaGpuEnabled() && $this->configurationManager->isNvidiaGpuEnabled()) {
+            $requestBody['HostConfig']['Runtime'] = 'nvidia';
+            $requestBody['HostConfig']['DeviceRequests'] = [
+                [
+                    "Driver" => "nvidia",
+                    "Count" => 1,
+                    "Capabilities" => [["gpu"]],
+                ]
+            ];
+        }
+
         $shmSize = $container->GetShmSize();
         if ($shmSize > 0) {
             $requestBody['HostConfig']['ShmSize'] = $shmSize;
@@ -530,19 +543,23 @@ readonly class DockerActionManager {
         $mounts = [];
 
         // Special things for the backup container which should not be exposed in the containers.json
-        if ($container->GetIdentifier() === 'nextcloud-aio-borgbackup') {
+        if (str_starts_with($container->GetIdentifier(), 'nextcloud-aio-borgbackup')) {
             // Additional backup directories
             foreach ($this->getAllBackupVolumes() as $additionalBackupVolumes) {
                 if ($additionalBackupVolumes !== '') {
                     $mounts[] = ["Type" => "volume", "Source" => $additionalBackupVolumes, "Target" => "/nextcloud_aio_volumes/" . $additionalBackupVolumes, "ReadOnly" => false];
                 }
             }
+
+            // Make volumes read only in case of borgbackup container. The viewer makes them writeable
+            $isReadOnly = $container->GetIdentifier() === 'nextcloud-aio-borgbackup';
+
             foreach ($this->configurationManager->GetAdditionalBackupDirectoriesArray() as $additionalBackupDirectories) {
                 if ($additionalBackupDirectories !== '') {
                     if (!str_starts_with($additionalBackupDirectories, '/')) {
-                        $mounts[] = ["Type" => "volume", "Source" => $additionalBackupDirectories, "Target" => "/docker_volumes/" . $additionalBackupDirectories, "ReadOnly" => true];
+                        $mounts[] = ["Type" => "volume", "Source" => $additionalBackupDirectories, "Target" => "/docker_volumes/" . $additionalBackupDirectories, "ReadOnly" => $isReadOnly];
                     } else {
-                        $mounts[] = ["Type" => "bind", "Source" => $additionalBackupDirectories, "Target" => "/host_mounts" . $additionalBackupDirectories, "ReadOnly" => true, "BindOptions" => ["NonRecursive" => true]];
+                        $mounts[] = ["Type" => "bind", "Source" => $additionalBackupDirectories, "Target" => "/host_mounts" . $additionalBackupDirectories, "ReadOnly" => $isReadOnly, "BindOptions" => ["NonRecursive" => true]];
                     }
                 }
             }
@@ -577,7 +594,7 @@ readonly class DockerActionManager {
                 ]
             );
         } catch (RequestException $e) {
-            throw new \Exception("Could not create container " . $container->GetIdentifier() . ": " . $e->getMessage());
+            throw new \Exception("Could not create container " . $container->GetIdentifier() . ": " . $e->getResponse()?->getBody()->getContents());
         }
 
     }
@@ -612,8 +629,11 @@ readonly class DockerActionManager {
         try {
             $this->guzzleClient->post($url);
         } catch (RequestException $e) {
+            $message = "Could not pull image " . $imageName . ": " . $e->getResponse()?->getBody()->getContents();
             if ($imageIsThere === false) {
-                throw new \Exception("Could not pull image " . $imageName . ". Please run 'sudo docker exec -it nextcloud-aio-mastercontainer docker pull " . $imageName . "' in order to find out why it failed.");
+                throw new \Exception($message);
+            } else {
+                error_log($message);
             }
         }
     }
@@ -869,7 +889,7 @@ readonly class DockerActionManager {
             } catch (RequestException $e) {
                 // 409 is undocumented and gets thrown if the network already exists.
                 if ($e->getCode() !== 409) {
-                    throw new \Exception("Could not create the nextcloud-aio network: " . $e->getMessage());
+                    throw new \Exception("Could not create the nextcloud-aio network: " . $e->getResponse()?->getBody()->getContents());
                 }
             }
         }
@@ -1012,6 +1032,10 @@ readonly class DockerActionManager {
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    public function GetAndGenerateSecretWrapper(string $secretId) : string {
+        return $this->configurationManager->GetAndGenerateSecret($secretId);
     }
 
     public function isNextcloudImageOutdated() : bool {
