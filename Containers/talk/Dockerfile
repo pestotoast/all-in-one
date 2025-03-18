@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:latest
-FROM nats:2.10.25-scratch AS nats
+FROM nats:2.10.26-scratch AS nats
 FROM eturnal/eturnal:1.12.1 AS eturnal
 FROM strukturag/nextcloud-spreed-signaling:2.0.2 AS signaling
 FROM alpine:3.21.3 AS janus
 
-ARG JANUS_VERSION=v1.3.0
+ARG JANUS_VERSION=v1.3.1
 WORKDIR /src
 RUN set -ex; \
     apk add --no-cache \

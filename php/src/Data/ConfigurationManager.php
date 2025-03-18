@@ -132,7 +132,7 @@ class ConfigurationManager
         }
     }
 
-    public function isx64Platform() : bool {
+    private function isx64Platform() : bool {
         if (php_uname('m') === 'x86_64') {
             return true;
         } else {
@@ -140,11 +140,7 @@ class ConfigurationManager
         }
     }
 
-    public function isClamavEnabled() : bool {
-        if (!$this->isx64Platform()) {
-            return false;
-        }
-        
+    public function isClamavEnabled() : bool {        
         $config = $this->GetConfig();
         if (isset($config['isClamavEnabled']) && $config['isClamavEnabled'] === 1) {
             return true;
@@ -170,10 +166,10 @@ class ConfigurationManager
 
     public function isWhiteboardEnabled() : bool {
         $config = $this->GetConfig();
-        if (isset($config['isWhiteboardEnabled']) && $config['isWhiteboardEnabled'] === 1) {
-            return true;
-        } else {
+        if (isset($config['isWhiteboardEnabled']) && $config['isWhiteboardEnabled'] === 0) {
             return false;
+        } else {
+            return true;
         }
     }
 
@@ -947,6 +943,38 @@ class ConfigurationManager
     public function DeleteCollaboraDictionaries() : void {
         $config = $this->GetConfig();
         $config['collabora_dictionaries'] = '';
+        $this->WriteConfig($config);
+    }
+
+    /**
+     * @throws InvalidSettingConfigurationException
+     */
+    public function SetAdditionalCollaboraOptions(string $additionalCollaboraOptions) : void {
+        if ($additionalCollaboraOptions === "") {
+            throw new InvalidSettingConfigurationException("The additional options must not be empty!");
+        }
+
+        if (!preg_match("#^--o:#", $additionalCollaboraOptions)) {
+            throw new InvalidSettingConfigurationException("The entered options must start with '--o:'. So the config does not seem to be a valid!");
+        }
+
+        $config = $this->GetConfig();
+        $config['collabora_additional_options'] = $additionalCollaboraOptions;
+        $this->WriteConfig($config);
+    }
+
+    public function GetAdditionalCollaboraOptions() : string {
+        $config = $this->GetConfig();
+        if(!isset($config['collabora_additional_options'])) {
+            $config['collabora_additional_options'] = '';
+        }
+
+        return $config['collabora_additional_options'];
+    }
+
+    public function DeleteAdditionalCollaboraOptions() : void {
+        $config = $this->GetConfig();
+        $config['collabora_additional_options'] = '';
         $this->WriteConfig($config);
     }
 
