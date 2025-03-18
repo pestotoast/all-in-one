@@ -113,11 +113,9 @@ url = nats://127.0.0.1:4222
 
 [mcu]
 type = janus
-maxstreambitrate=10485760
-maxscreenbitrate=10485760
 url = ws://127.0.0.1:8188
-maxstreambitrate = ${TALK_MAX_STREAM_BITRATE}
-maxscreenbitrate = ${TALK_MAX_SCREEN_BITRATE}
+maxstreambitrate = ${TALK_MAX_STREAM_BITRATE:=10485760}
+maxscreenbitrate = ${TALK_MAX_SCREEN_BITRATE:=10485760}
 SIGNALING_CONF
 
 exec "$@"
